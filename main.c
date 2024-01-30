@@ -2,8 +2,6 @@
 
 #define MAX_PAS_SIZE 500
 
-int PAS[MAX_PAS_SIZE] = {0};
-
 typedef struct
 {
     int OP;
@@ -13,7 +11,9 @@ typedef struct
 
 int BP, SP, PC;
 INS IR;
+int PAS[MAX_PAS_SIZE] = {0};
 
+// function to load program into PAS
 void loadProgram(const char *filename)
 {
     FILE *fp;
@@ -21,7 +21,7 @@ void loadProgram(const char *filename)
 
     if (fp == NULL)
     {
-        printf("Error opening file\n");
+        perror("Error opening file\n");
         return;
     }
 
@@ -34,95 +34,208 @@ void loadProgram(const char *filename)
     fclose(fp);
 }
 
-// Appendix A
-// Instruction Set Architecture (ISA) – (eventually we will use “stack” to refer to the stack
-// segment in PAS)
-// In the following tables, italicized names (such as p) are meta-variables that refer to integers. If
-// an instruction’s field is notated as “-“, then its value does not matter (we use 0 as a placeholder
-// for such values in examples).
-// ISA:
-// 01 – LIT 0, M Pushes a constant value (literal) M onto the stack
-// 02 – OPR 0, M Operation to be performed on the data at the top of the stack.
-// (or return from function)
-// 03 – LOD L, M Load value to top of stack from the stack location at
-// offset M from L lexicographical levels down
-// 04 – STO L, M Store value at top of stack in the stack location at offset M
-// from L lexicographical levels down
-// 05 – CAL L, M Call procedure at code index M (generates new
-// Activation Record and PC M)
-// 06 – INC 0, M Allocate M memory words (increment SP by M). First four
-// are reserved to Static Link (SL), Dynamic Link (DL),
-// and Return Address (RA)
-// 07 – JMP 0, M Jump to instruction M (PC M)
-// 08 – JPC 0, M Jump to instruction M if top stack element is 0
-// 09 – SYS 0, 1 Write the top stack element to the screen
-//      SYS 0, 2 Read in input from the user and store it on top of the stack
-//      SYS 0, 3 End of program (Set “eop” flag to zero)
-
-char *opcodes[10] = {"LIT", "OPR", "LOD", "STO", "CAL",
-                     "INC", "JMP", "JPC", "SYS", "ERR"};
-
-void printStack()
+int base(int BP, int L)
 {
-    // print stack from base to top (stock goes down)
-    for (int i = BP; i <= SP; i++)
+    int arb = BP; // arb = activation record base
+    while (L > 0) // find base L levels down
     {
-        printf("%d ", PAS[i]);
+        arb = PAS[arb];
+        L--;
     }
+    return arb;
 }
 
-int main()
-{
-    loadProgram("input.txt");
+// Array for printing opcodes
+char *opcodes[10] = {"LIT", "OPR", "LOD", "STO", "CAL",
+                     "INC", "JMP", "JPC", "SYS", "ERR"};
+char *syscodes[3] = {"SOU", "SIN", "EOP"};
+char *operations[12] = {"RTN", "ADD", "SUB", "MUL", "DIV", "EQL", "NEQ", "LSS", "LEQ", "GTR", "GEQ", "ODD"};
 
-    SP = 500;
+int main(int argc, char *argv[])
+{
+
+    if (argc != 2)
+    {
+        printf("Usage: %s <input file>\n", argv[0]);
+        return 1;
+    }
+
+    // load program into PAS
+    loadProgram(argv[1]);
+
+    // initialize registers
+    SP = MAX_PAS_SIZE;
     BP = SP - 1;
     PC = 0;
     IR.OP = 0;
     IR.L = 0;
     IR.M = 0;
 
-    // printf("                 PC BP SP stack\n");
-    // printf("Initial values: %-4d %-4d %-4d\n\n", PC, BP, SP);
+    // print header and initial values
+    printf("%15s %4s %4s %4s %s\n", "", "PC", "BP", "SP", "stack");
+    printf("%-15s %4d %4d %4d\n\n", "Initial Values:", PC, BP, SP);
 
-    // instead print in nice columns
-    printf("%-11s %-4s %-4s %-4s stack\n", "", "PC", "BP", "SP");
-
-    int i = 0;
-    // infinite loop
-    while (i < 2)
+    int EOP = 0;
+    while (!EOP)
     {
 
         // fetch
         IR.OP = PAS[PC];
         IR.L = PAS[PC + 1];
         IR.M = PAS[PC + 2];
-
-        // increment PC
         PC += 3;
-
-        // print fetch
-        printf("    %3s %2d %2d ", opcodes[IR.OP - 1], IR.L, IR.M);
 
         // execute
         switch (IR.OP)
         {
-        case 7: // JMP
+        case 1: // LIT
+            PAS[--SP] = IR.M;
+            break;
+
+        case 2: // OPR
+            switch (IR.M)
+            {
+            case 0: // RTN
+                SP = BP + 1;
+                BP = PAS[SP - 2];
+                PC = PAS[SP - 3];
+                break;
+
+            case 1: // ADD
+                PAS[SP + 1] = PAS[SP + 1] + PAS[SP];
+                SP++;
+                break;
+
+            case 2: // SUB
+                PAS[SP + 1] = PAS[SP + 1] - PAS[SP];
+                SP++;
+                break;
+
+            case 3: // MUL
+                PAS[SP + 1] = PAS[SP + 1] * PAS[SP];
+                SP++;
+                break;
+
+            case 4: // DIV
+                PAS[SP + 1] = PAS[SP + 1] / PAS[SP];
+                SP++;
+                break;
+
+            case 5: // EQL
+                PAS[SP + 1] = PAS[SP + 1] == PAS[SP];
+                SP++;
+                break;
+
+            case 6: // NEQ
+                PAS[SP + 1] = PAS[SP + 1] != PAS[SP];
+                SP++;
+                break;
+
+            case 7: // LSS
+                PAS[SP + 1] = PAS[SP + 1] < PAS[SP];
+                SP++;
+                break;
+
+            case 8: // LEQ
+                PAS[SP + 1] = PAS[SP + 1] <= PAS[SP];
+                SP++;
+                break;
+
+            case 9: // GTR
+                PAS[SP + 1] = PAS[SP + 1] > PAS[SP];
+                SP++;
+                break;
+
+            case 10: // GEQ
+                PAS[SP + 1] = PAS[SP + 1] >= PAS[SP];
+                SP++;
+                break;
+
+            case 11: // ODD
+                PAS[SP] = PAS[SP] % 2;
+                break;
+
+            default:
+                break;
+            }
+            break;
+
+        case 3: // LOD
+            PAS[--SP] = PAS[base(BP, IR.L) - IR.M];
+            break;
+
+        case 4: // STO
+            PAS[base(BP, IR.L) - IR.M] = PAS[SP];
+            SP++;
+            break;
+
+        case 5: // CAL
+            PAS[SP - 1] = base(BP, IR.L);
+            PAS[SP - 2] = BP;
+            PAS[SP - 3] = PC;
+            BP = SP - 1;
             PC = IR.M;
-            printStack();
             break;
 
         case 6: // INC
             SP -= IR.M;
-            printStack();
             break;
 
+        case 7: // JMP
+            PC = IR.M;
+            break;
+
+        case 8: // JPC
+            if (PAS[SP++] == 0)
+                PC = IR.M;
+            break;
+
+        case 9:
+            switch (IR.M)
+            {
+            case 1:
+                printf("Output result is: %d\n", PAS[SP++]);
+                break;
+
+            case 2:
+                printf("Please Enter an integer: ");
+                scanf("%d", &PAS[--SP]);
+                break;
+
+            case 3:
+                EOP = 1;
+                break;
+
+            default:
+                break;
+            }
+
+        default:
             break;
         }
 
-        // print execute
-        printf("%2d %3d %3d\n", PC, BP, SP);
-        i++;
+        // print instruction
+        char *opCode;
+        if (IR.OP == 9)
+            opCode = syscodes[IR.M - 1];
+        else if (IR.OP == 2)
+            opCode = operations[IR.M];
+        else
+            opCode = opcodes[IR.OP - 1];
+
+        printf("%5s %4d %4d", opCode, IR.L, IR.M);
+
+        // print registers
+        printf(" %4d %4d %4d ", PC, BP, SP);
+
+        // print stack
+        for (int i = MAX_PAS_SIZE - 1; i >= SP; i--)
+        {
+            if (i == BP && BP != MAX_PAS_SIZE - 1)
+                printf("| ");
+            printf("%d ", PAS[i]);
+        }
+        printf("\n");
     }
     return 0;
 }
