@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
     IR.M = 0;
 
     // print header and initial values
-    printf("%15s %4s %4s %4s %s\n", "", "PC", "BP", "SP", "stack");
-    printf("%-15s %4d %4d %4d\n\n", "Initial Values:", PC, BP, SP);
+    printf("                PC      BP      SP      Stack\n");
+    printf("Initial values: %-3d     %-3d     %-3d\n\n", PC, BP, SP);
 
     int EOP = 0;
     while (!EOP)
@@ -223,15 +223,15 @@ int main(int argc, char *argv[])
         else
             opCode = opcodes[IR.OP - 1];
 
-        printf("%5s %4d %4d", opCode, IR.L, IR.M);
+        printf("  %s %d %-8d", opCode, IR.L, IR.M);
 
         // print registers
-        printf(" %4d %4d %4d ", PC, BP, SP);
+        printf("%-3d     %-3d     %-3d     ", PC, BP, SP);
 
         // print stack
         for (int i = MAX_PAS_SIZE - 1; i >= SP; i--)
         {
-            if (i == BP && BP != MAX_PAS_SIZE - 1)
+            if (PAS[i] == 499 && PAS[i + 1] != 499)
                 printf("| ");
             printf("%d ", PAS[i]);
         }
